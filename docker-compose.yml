@@ -1,0 +1,60 @@
+version: '3'
+services:
+  opendistro-es:
+    image: amazon/opendistro-for-elasticsearch:1.13.2
+    container_name: opendistro-es
+    environment:
+      - cluster.name=odfe-cluster
+      - node.name=odfe-node1
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - opendistro_security.ssl.transport.enabled=true
+      - opendistro_security.ssl.http.enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - odfe-data:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - odfe-net
+
+  opendistro-kibana:
+    image: amazon/opendistro-for-elasticsearch-kibana:1.13.2
+    container_name: opendistro-kibana
+    ports:
+      - 5601:5601
+    environment:
+      ELASTICSEARCH_URL: http://opendistro-es:9200
+      ELASTICSEARCH_HOSTS: '["http://opendistro-es:9200"]'
+    depends_on:
+      - opendistro-es
+    networks:
+      - odfe-net
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.10.2
+    container_name: logstash
+    volumes:
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+    ports:
+      - 5000:5000
+    environment:
+      LS_JAVA_OPTS: "-Xmx256m -Xms256m"
+      LS_HTTP_ENABLE: "false" # SSL/TLS 비활성화
+    depends_on:
+      - opendistro-es
+    networks:
+      - odfe-net
+
+networks:
+  odfe-net:
+    driver: bridge
+
+volumes:
+  odfe-data:
+    driver: local
